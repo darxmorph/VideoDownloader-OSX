@@ -11,12 +11,6 @@ namespace Formula1Downloader
 {
 	partial class AppDelegate
 	{
-		[Action ("ProjectGitHub:")]
-		partial void ProjectGitHub (Foundation.NSObject sender);
-
-		[Action ("RedditPost:")]
-		partial void RedditPost (Foundation.NSObject sender);
-		
 		void ReleaseDesignerOutlets ()
 		{
 		}
