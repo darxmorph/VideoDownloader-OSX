@@ -1,6 +1,6 @@
 // WARNING
 //
-// This file has been generated automatically by Xamarin Studio to store outlets and
+// This file has been generated automatically by Visual Studio to store outlets and
 // actions made in the UI designer. If it is removed, they will be lost.
 // Manual changes to this file may not be handled correctly.
 //
@@ -16,10 +16,16 @@ namespace Formula1Downloader
 		AppKit.NSButton DownloadButton { get; set; }
 
 		[Outlet]
+		AppKit.NSButton PreferMP4 { get; set; }
+
+		[Outlet]
 		AppKit.NSProgressIndicator ProgressBar { get; set; }
 
 		[Outlet]
 		AppKit.NSTextField URLTextField { get; set; }
+
+		[Outlet]
+		AppKit.NSTextField VideoProgressLabel { get; set; }
 
 		[Action ("DownloadButtonClicked:")]
 		partial void DownloadButtonClicked (Foundation.NSObject sender);
@@ -31,6 +37,11 @@ namespace Formula1Downloader
 				DownloadButton = null;
 			}
 
+			if (PreferMP4 != null) {
+				PreferMP4.Dispose ();
+				PreferMP4 = null;
+			}
+
 			if (ProgressBar != null) {
 				ProgressBar.Dispose ();
 				ProgressBar = null;
@@ -39,6 +50,11 @@ namespace Formula1Downloader
 			if (URLTextField != null) {
 				URLTextField.Dispose ();
 				URLTextField = null;
+			}
+
+			if (VideoProgressLabel != null) {
+				VideoProgressLabel.Dispose ();
+				VideoProgressLabel = null;
 			}
 		}
 	}

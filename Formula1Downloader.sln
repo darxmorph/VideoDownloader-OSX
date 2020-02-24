@@ -14,17 +14,11 @@ Global
 		{9526F924-E46B-4ED6-9ADD-6FD05ABD4FAE}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{9526F924-E46B-4ED6-9ADD-6FD05ABD4FAE}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{9526F924-E46B-4ED6-9ADD-6FD05ABD4FAE}.Release|Any CPU.Build.0 = Release|Any CPU
-		{9526F924-E46B-4ED6-9ADD-6FD05ABD4FAE}.UnsignedRelease|Any CPU.ActiveCfg = UnsignedRelease|Any CPU
-		{9526F924-E46B-4ED6-9ADD-6FD05ABD4FAE}.UnsignedRelease|Any CPU.Build.0 = UnsignedRelease|Any CPU
 	EndGlobalSection
 	GlobalSection(MonoDevelopProperties) = preSolution
 		Policies = $0
 		$0.DotNetNamingPolicy = $1
-		$1.DirectoryNamespaceAssociation = None
-		$1.ResourceNamePolicy = FileFormatDefault
 		$0.StandardHeader = $2
-		$2.Text = 
-		$2.IncludeInNewFiles = True
 		$0.NameConventionPolicy = $3
 		$3.Rules = $4
 		$4.NamingRule = $5

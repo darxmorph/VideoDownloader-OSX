@@ -5,8 +5,7 @@ using System.Collections.Generic;
 using System.IO;
 using AppKit;
 using Foundation;
-
-using hdsdump;
+using Formula1Downloader.Downloaders;
 
 namespace Formula1Downloader
 {
@@ -16,68 +15,85 @@ namespace Formula1Downloader
 		{
 		}
 
-		private List<Video> _vids = new List<Video>();
+		private List<Video> _videos = new List<Video>();
+		private readonly Queue<Tuple<Video, string>> _downloadQueue = new Queue<Tuple<Video, string>>();
+		private readonly List<char> _invalidChars = new List<char>(Path.GetInvalidFileNameChars())
+		{
+			':',
+			'\\'
+		};
+		private string _defaultSaveDirectory;
+		private int _currentVideo = 0;
+		private int _totalVideos = 0;
 
-		public override void PrepareForSegue (NSStoryboardSegue segue, NSObject sender)
+		private string DefaultSaveDirectory
+		{
+			get
+			{
+				if (_defaultSaveDirectory != null)
+					return _defaultSaveDirectory;
+
+				string userProfileFolder = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+				string downloadsFolder = Path.Combine(userProfileFolder, "Downloads");
+				return _defaultSaveDirectory = Directory.Exists(downloadsFolder) ? downloadsFolder : userProfileFolder;
+			}
+		}
+
+		public override void PrepareForSegue(NSStoryboardSegue segue, NSObject sender)
 		{
 			base.PrepareForSegue (segue, sender);
 
-			// Take action based on the segue name
-			switch (segue.Identifier) {
-			case "ChooseVideosSegue":
+			if (segue.Identifier == "ChooseVideosSegue")
+			{
 				var dialog = segue.DestinationController as ChooseVideos;
-				// dialog.VideoTitlesList = _vids;
-				// dialog.DataSource.Videos = _vids;
-				dialog.Videos = _vids;
-				dialog.DialogAccepted += (s, e) => {
-					if (dialog.DataSource.SelectedVideos.Count > 0) {
-						bool notChosen = false;
-						BackgroundWorker notMainThread = new BackgroundWorker ();
-						notMainThread.DoWork += delegate {
-							// string dir = ShowChooseDirectory(sender);
-							// System.Threading.Thread.Sleep(2000);
-							string dir = ShowChooseDirectory (sender);
-							if (dir == "") {
-								notChosen = true;
-								return;
-							}
-								
-							foreach (Video vid in dialog.DataSource.SelectedVideos) {
-								string saveFilePath = Path.Combine (dir, CleanFileName (vid.Title)) + ".flv";
-								F1Utils.getVideoUsingAdobeHDS (vid, saveFilePath, ProgressBar);
-							}
-						};
-						notMainThread.RunWorkerCompleted += delegate {
-							ProgressBar.DoubleValue = 0;
-							DownloadButton.Enabled = true;
-							URLTextField.Enabled = true;
+				dialog.Videos = _videos;
+				dialog.Presentor = this;
+				dialog.DialogAccepted += (s, e) =>
+				{
+					_totalVideos = dialog.DataSource.Videos.Count(x => x.Selected);
+					_currentVideo = 1;
 
-							if (notChosen) {
-								var notChosenAlert = new NSAlert () {
-									AlertStyle = NSAlertStyle.Critical,
-									InformativeText = "Please choose where to save",
-									MessageText = "Error",
-								};
-								notChosenAlert.BeginSheet(NSApplication.SharedApplication.KeyWindow);
-							} else {
-								var videoDownloaded = new NSAlert () {
-									AlertStyle = NSAlertStyle.Informational,
-									InformativeText = "Video(s) downloaded",
-									MessageText = "Done",
-								};
-								videoDownloaded.BeginSheet(NSApplication.SharedApplication.KeyWindow);
-							}
-						};
-						notMainThread.RunWorkerAsync ();
-					} else {
-						ProgressBar.DoubleValue = 0;
-						DownloadButton.Enabled = true;
-						URLTextField.Enabled = true;
+					if (_totalVideos == 1)
+					{
+						HandleSingleVideo(dialog.DataSource.Videos.First(x => x.Selected));
 					}
-					dialog.Presentor = this;
+					else if (_totalVideos > 1)
+					{
+						var save = new NSOpenPanel
+						{
+							CanChooseDirectories = true,
+							CanCreateDirectories = true,
+							CanChooseFiles = false,
+							DirectoryUrl = new NSUrl(DefaultSaveDirectory),
+							Title = "Save Video File",
+							Prompt = "Save downloaded videos here"
+						};
+						save.BeginSheet(View.Window, (result) =>
+						{
+							if (result == (int)NSPanelButtonType.Ok)
+							{
+								foreach (var v in dialog.DataSource.Videos)
+								{
+									if (v.Selected)
+									{
+										string filePath = Path.Combine(save.Url.Path, CleanFileName(v.Title)) + (PreferMP4.State.HasFlag(NSCellStateValue.On) ? ".mp4" : ".flv");
+										AddToQueue(v, filePath);
+									}
+								}
+								ProcessQueue();
+							}
+							else
+							{
+								ToggleUI(true);
+							}
+						});
+					}
+					else
+					{
+						ToggleUI(true);
+					}
 				};
-				break;
-			};
+			}
 		}
 
 		public override void ViewDidLoad ()
@@ -87,196 +103,150 @@ namespace Formula1Downloader
 			URLTextField.BecomeFirstResponder();
 		}
 
-		public override NSObject RepresentedObject {
-			get {
-				return base.RepresentedObject;
-			}
-			set {
-				base.RepresentedObject = value;
-			}
-		}
+		partial void DownloadButtonClicked(NSObject sender)
+		{
+			// Otherwise the string disappears after we disable it.
+			URLTextField.StringValue = URLTextField.StringValue;
+			ToggleUI(false);
 
-		partial void DownloadButtonClicked(NSObject sender) {
-			/*
-			 * Some vids for testing
-			https://www.formula1.com/content/fom-website/en/video/2016/4/Director's_Cut__Bahrain_2016.html
-			https://www.formula1.com/content/fom-website/en/latest/features/2016/3/f1-2016-best-onboard-videos-australia.html
-			https://www.formula1.com/content/fom-website/en/latest/features/2016/4/say-what--the-best-of-team-radio-from-bahrain.html
-			https://www.formula1.com/content/fom-website/en/latest/features/2016/4/f1-best-radio-china-say-what.html
-			*/
-
-			DownloadButton.Enabled = false;
-			URLTextField.StringValue = URLTextField.StringValue; // Otherwise the string disappears after we disable it. I don't know if there's a better way to achieve this...
-			URLTextField.Enabled = false;
-
-			Uri videoURI = null;
-
-			if (!(URLTextField.StringValue.StartsWith("http://") || URLTextField.StringValue.StartsWith("https://")))
+			if (URLTextField.StringValue.StartsWith("http://"))
+				URLTextField.StringValue = URLTextField.StringValue.Replace("http://", "https://");
+			if (URLTextField.StringValue.StartsWith("www.formula1.com") || URLTextField.StringValue.StartsWith("formula1.com"))
 				URLTextField.StringValue = "https://" + URLTextField.StringValue;
 
-			bool isURLvalid = (URLTextField.StringValue.StartsWith("http://www.formula1.com") || URLTextField.StringValue.StartsWith("https://www.formula1.com"))
-				&& Uri.TryCreate(URLTextField.StringValue, UriKind.Absolute, out videoURI)
-				&& (videoURI.Scheme == Uri.UriSchemeHttp || videoURI.Scheme == Uri.UriSchemeHttps);
+			bool isURLvalid = Uri.TryCreate(URLTextField.StringValue, UriKind.Absolute, out Uri videoURI)
+				&& videoURI.Scheme == Uri.UriSchemeHttps
+				&& (videoURI.Host == "www.formula1.com" || videoURI.Host == "formula1.com");
 
-			if (isURLvalid)
+			if (!isURLvalid)
 			{
-				F1Utils.F1VideoTypes? videoType = F1Utils.getF1UriVideoType(videoURI);
-
-				switch (videoType) {
-				case F1Utils.F1VideoTypes.SingleVideo:
-					Video vid = F1Utils.getF4MManifestURLsFromVideoURI(videoURI).First();
-
-					string outFile = "";
-
-					BackgroundWorker saveVideoToFile = new BackgroundWorker();
-
-					saveVideoToFile.DoWork += delegate {
-						outFile = ShowSaveAs(sender, vid.Title);
-					};
-
-					saveVideoToFile.RunWorkerCompleted += delegate {
-						if (outFile == "") {
-							var chooseWhereToSave = new NSAlert () {
-								AlertStyle = NSAlertStyle.Critical,
-								InformativeText = "Please choose where to save",
-								MessageText = "Error",
-							};
-							chooseWhereToSave.BeginSheet(NSApplication.SharedApplication.KeyWindow);
-
-							DownloadButton.Enabled = true;
-							URLTextField.Enabled = true;
-
-							return;
-						}
-
-						BackgroundWorker downloadWorker = new BackgroundWorker();
-						downloadWorker.DoWork += delegate {
-							F1Utils.getVideoUsingAdobeHDS(vid, outFile, ProgressBar);
-						};
-						downloadWorker.RunWorkerCompleted += delegate {
-							ProgressBar.DoubleValue = 0;
-							DownloadButton.Enabled = true;
-							URLTextField.Enabled = true;
-
-							var videoDownloaded = new NSAlert () {
-								AlertStyle = NSAlertStyle.Informational,
-								InformativeText = "Video downloaded",
-								MessageText = "Done",
-							};
-							videoDownloaded.BeginSheet(NSApplication.SharedApplication.KeyWindow);
-						};
-						downloadWorker.RunWorkerAsync();
-					};
-
-					saveVideoToFile.RunWorkerAsync();
-					break;
-
-				case F1Utils.F1VideoTypes.H5AndVideo:
-					Video[] videosToDownload = null;
-					BackgroundWorker getManifests = new BackgroundWorker();
-					getManifests.DoWork += delegate {
-						videosToDownload = F1Utils.getF4MManifestURLsFromVideoURI(videoURI);
-					};
-					getManifests.RunWorkerCompleted += delegate {
-						if (videosToDownload == null || videosToDownload.Length < 1) {
-							DownloadButton.Enabled = true;
-							URLTextField.Enabled = true;
-							return;
-						}
-
-						_vids = videosToDownload.OfType<Video>().ToList();
-
-
-						this.PerformSegue("ChooseVideosSegue", this);
-					};
-					getManifests.RunWorkerAsync();
-					break;
-
-				default:
-					var unknownVidType = new NSAlert () {
-						AlertStyle = NSAlertStyle.Critical,
-						InformativeText = "Error obtaning video info from URL",
-						MessageText = "Error",
-					};
-					unknownVidType.BeginSheet(NSApplication.SharedApplication.KeyWindow);
-					DownloadButton.Enabled = true;
-					URLTextField.Enabled = true;
-					break;
-				}
-			}
-			else {
-				var invalidURLalert = new NSAlert () {
+				new NSAlert()
+				{
 					AlertStyle = NSAlertStyle.Critical,
 					InformativeText = "Please check if the URL is valid",
-					MessageText = "Invalid URL",
-				};
-				invalidURLalert.BeginSheet(NSApplication.SharedApplication.KeyWindow);
+					MessageText = "Invalid URL"
+				}.BeginSheet(View.Window, () => ToggleUI(true));
 
-				DownloadButton.Enabled = true;
-				URLTextField.Enabled = true;
+				return;
+			}
+
+			_videos = F1Utils.GetVideosFromUri(videoURI);
+
+			if (_videos.Count == 1)
+			{
+				HandleSingleVideo(_videos.First());
+			}
+			else if (_videos.Count > 1)
+			{
+				PerformSegue("ChooseVideosSegue", this);
+			}
+			else
+			{
+				new NSAlert()
+				{
+					AlertStyle = NSAlertStyle.Warning,
+					InformativeText = "Could not find any video in that URL",
+					MessageText = "No videos found"
+				}.BeginSheet(View.Window, () => ToggleUI(true));
 			}
 		}
 
-		string ShowSaveAs (NSObject sender, string DefaultFileName)
+		private void HandleSingleVideo(Video video)
 		{
-			string ret = "";
+			var save = new NSSavePanel
+			{
+				DirectoryUrl = new NSUrl(DefaultSaveDirectory),
+				AllowedFileTypes = new string[] {
+					PreferMP4.State.HasFlag(NSCellStateValue.On) ? "mp4" : "flv"
+				},
+				Title = "Save Video File",
+				NameFieldStringValue = CleanFileName(video.Title)
+			};
+			save.BeginSheet(View.Window, (result) =>
+			{
+				if (result == (int)NSPanelButtonType.Ok)
+				{
+					AddToQueue(video, save.Url.Path);
+					ProcessQueue();
+				}
+				else
+				{
+					ToggleUI(true);
+				}
+			});
+		}
 
-			System.Threading.AutoResetEvent saveEvent = new System.Threading.AutoResetEvent(false);
-
-			this.InvokeOnMainThread(new Action(() => {
-				var save = new NSSavePanel ();
-				save.DirectoryUrl = new NSUrl (Environment.GetFolderPath (Environment.SpecialFolder.UserProfile));
-				save.AllowedFileTypes = new string[] { "flv" };
-				save.Title = "Save Video File";
-				save.NameFieldStringValue = CleanFileName(DefaultFileName);
-
-				save.BeginSheet (NSApplication.SharedApplication.KeyWindow, (result) => {
-					if (result == (int)NSPanelButtonType.Ok) {
-						ret = save.Url.Path;
-					}
-
-					saveEvent.Set();
-				});
-			}));
-
-			saveEvent.WaitOne ();
-
-			return ret;
+		private void ToggleUI(bool enable)
+		{
+			DownloadButton.Enabled = enable;
+			URLTextField.Enabled = enable;
+			PreferMP4.Enabled = enable;
 		}
 
 
-		string ShowChooseDirectory (NSObject sender)
+		private void AddToQueue(Video video, string filePath)
 		{
-			string ret = "";
-
-			System.Threading.AutoResetEvent saveEvent = new System.Threading.AutoResetEvent(false);
-
-			this.InvokeOnMainThread(new Action(() => {
-				var save = new NSOpenPanel ();
-				save.CanChooseDirectories = true;
-				save.CanCreateDirectories = true;
-				save.CanChooseFiles = false;
-				save.DirectoryUrl = new NSUrl (Environment.GetFolderPath (Environment.SpecialFolder.UserProfile));
-				save.AllowedFileTypes = new string[] { "flv" };
-				save.Title = "Save Video File";
-				save.Prompt = "Save downloaded videos here";
-				save.BeginSheet (NSApplication.SharedApplication.KeyWindow, (result) => {
-					if (result == (int)NSPanelButtonType.Ok) {
-						ret = save.Url.Path;
-					}
-
-					saveEvent.Set();
-				});
-			}));
-
-			saveEvent.WaitOne ();
-
-			return ret;
+			_downloadQueue.Enqueue(Tuple.Create(video, filePath));
 		}
 
-		private static string CleanFileName(string fileName)
+		private bool ProcessQueue()
 		{
-			return Path.GetInvalidFileNameChars().Aggregate(fileName, (current, c) => current.Replace(c.ToString(), string.Empty));
+			if (_downloadQueue.Count > 0)
+			{
+				var item = _downloadQueue.Dequeue();
+
+				if (_totalVideos > 1)
+				{
+					VideoProgressLabel.StringValue = $"{_currentVideo}/{_totalVideos}";
+					VideoProgressLabel.Hidden = false;
+				}
+				DownloadVideo(item.Item1, item.Item2);
+				return true;
+			}
+
+			return false;
+		}
+
+		private void DownloadVideo(Video video, string filePath)
+		{
+			Downloader d;
+
+			if (PreferMP4.State.HasFlag(NSCellStateValue.On))
+				d = new MP4Downloader(video, filePath);
+			else
+				d = new FLVDownloader(video, filePath);
+
+			d.ProgressChanged += OnProgressChanged;
+			d.DownloadComplete += OnDownloadComplete;
+			d.StartDownload();
+		}
+
+		private void OnProgressChanged(object sender, ProgressChangedEventArgs e)
+		{
+			ProgressBar.DoubleValue = e.ProgressPercentage;
+		}
+
+		private void OnDownloadComplete(object sender, EventArgs e)
+		{
+			_currentVideo++;
+			ProgressBar.DoubleValue = 0;
+			if (!ProcessQueue())
+			{
+				VideoProgressLabel.Hidden = true;
+				_totalVideos = 0;
+
+				new NSAlert()
+				{
+					AlertStyle = NSAlertStyle.Informational,
+					InformativeText = "Video(s) downloaded",
+					MessageText = "Done"
+				}.BeginSheet(View.Window, () => ToggleUI(true));
+			}
+		}
+
+		private string CleanFileName(string fileName)
+		{
+			return _invalidChars.Aggregate(fileName, (current, c) => current.Replace(c.ToString(), string.Empty));
 		}
 	}
 }

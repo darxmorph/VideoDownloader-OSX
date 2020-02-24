@@ -1,28 +1,18 @@
 ﻿using System;
-using System.Linq;
 using AppKit;
 using CoreGraphics;
-using Foundation;
-using System.Collections;
-using System.Collections.Generic;
 
 namespace Formula1Downloader
 {
 	public class VideoTableDelegate: NSTableViewDelegate
 	{
-		#region Constants 
-		private const string CellIdentifier = "ProdCell";
-		#endregion
-
 		#region Private Variables
-		private VideoTableDataSource DataSource;
-		// private ViewController Controller;
+		private readonly VideoTableDataSource DataSource;
 		#endregion
 
 		#region Constructors
 		public VideoTableDelegate (VideoTableDataSource datasource)
 		{
-			// this.Controller = controller;
 			this.DataSource = datasource;
 		}
 		#endregion
@@ -80,10 +70,10 @@ namespace Formula1Downloader
 
 						switch (btw.State) {
 						case NSCellStateValue.Off:
-							DataSource.SelectedVideos.Remove(DataSource.Videos[(int) row]);
+							DataSource.Videos[(int) row].Selected = false;
 							break;
 						case NSCellStateValue.On:
-							DataSource.SelectedVideos.Add(DataSource.Videos[(int) row]);
+							DataSource.Videos[(int)row].Selected = true;
 							break;
 						}
 					};
@@ -97,18 +87,9 @@ namespace Formula1Downloader
 			// Setup view based on the column selected
 			switch (tableColumn.Title) {
 			case "Name":
-				// view.TextField.StringValue = DataSource.Videos[(int) row];
 				view.TextField.StringValue = DataSource.Videos[(int) row].Title;
 				view.TextField.Tag = row;
 				break;
-			/*case "Action":
-				foreach (NSView subview in view.Subviews) {
-					var btw = subview as NSButton;
-					if (btw != null) {
-						btn.Tag = row;
-					}
-				}
-				break;*/
 			}
 
 			return view;

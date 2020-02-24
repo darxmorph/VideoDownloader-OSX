@@ -1150,7 +1150,7 @@ namespace hdsdump
             }
         }
 
-		public void DownloadFragments(string manifestUrl, AppKit.NSProgressIndicator ProgressBar)
+        public void DownloadFragments(string manifestUrl, Action<int, int> onProgressChanged)
         {
             HTTP cc = new HTTP(!Program.fproxy);
             this.ParseManifest(manifestUrl);
@@ -1208,11 +1208,7 @@ namespace hdsdump
 
                 //if (this.duration > 0)
 
-				ProgressBar.InvokeOnMainThread(new Action(() => {
-					ProgressBar.MinValue = 0;
-					ProgressBar.MaxValue = this.fragCount;
-					ProgressBar.DoubleValue = this.fragNum;
-				}));
+                onProgressChanged(fragNum, fragCount);
 
                 int fragIndex = FindFragmentInTabe(this.fragNum);
                 if (fragIndex >= 0)

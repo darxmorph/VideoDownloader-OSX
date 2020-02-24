@@ -11,42 +11,15 @@ namespace Formula1Downloader
 	{
 		public ChooseVideos (IntPtr handle) : base (handle)
 		{
-			
 		}
 
-		public override CoreGraphics.CGSize PreferredContentSize {
-			get {
-				return new CoreGraphics.CGSize(this.View.Frame.Size.Width, this.View.Frame.Size.Height);
-			}
-			set {
-				// base.PreferredContentSize = value;
-			}
-		}
-
-		public override void ViewDidLoad ()
-		{
-			base.ViewDidLoad ();
-		}
-
-		#region Private Variables
-		private List<Video> _VideoList;
-		private NSViewController _presentor;
-		#endregion
+		public override CoreGraphics.CGSize PreferredContentSize =>
+			new CoreGraphics.CGSize(this.View.Frame.Size.Width, this.View.Frame.Size.Height);
 
 		#region Computed Properties
-		public List<Video> Videos {
-			get { return _VideoList; }
-			set { _VideoList = value; }
-		}
-
-		public NSViewController Presentor {
-			get { return _presentor; }
-			set { _presentor = value; }
-		}
-
-		public VideoTableDataSource DataSource = new VideoTableDataSource ();
-
-		private VideoTableDelegate _VideoTableDelegate { get;set; }
+		public List<Video> Videos { get; set; }
+		public NSViewController Presentor { get; set; }
+		public VideoTableDataSource DataSource { get; private set; }
 		#endregion
 
 		#region Override Methods
@@ -54,9 +27,8 @@ namespace Formula1Downloader
 		{
 			base.ViewWillAppear ();
 
-			DataSource.Videos = _VideoList;
+			DataSource = new VideoTableDataSource(Videos);
 
-			// Populate the Product Table
 			VideosTable.DataSource = DataSource;
 			VideosTable.Delegate = new VideoTableDelegate (DataSource);
 		}
@@ -69,18 +41,17 @@ namespace Formula1Downloader
 		#endregion
 
 		#region Custom Actions
-		partial void AcceptSheet (Foundation.NSObject sender) {
-			RaiseDialogAccepted();
+		partial void AcceptSheet (NSObject sender) {
 			CloseDialog();
+			RaiseDialogAccepted();
 		}
 		#endregion
 
 		#region Events
 		public EventHandler DialogAccepted;
 
-		internal void RaiseDialogAccepted() {
-			if (this.DialogAccepted != null)
-				this.DialogAccepted (this, EventArgs.Empty);
+		private void RaiseDialogAccepted() {
+			DialogAccepted?.Invoke(this, EventArgs.Empty);
 		}
 		#endregion
 	}
