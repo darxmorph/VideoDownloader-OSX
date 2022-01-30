@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.ComponentModel;
 using System.Linq;
 using System.Collections.Generic;
@@ -76,7 +76,7 @@ namespace Formula1Downloader
 								{
 									if (v.Selected)
 									{
-										string filePath = Path.Combine(save.Url.Path, CleanFileName(v.Title)) + (PreferMP4.State.HasFlag(NSCellStateValue.On) ? ".mp4" : ".flv");
+										string filePath = Path.Combine(save.Url.Path, CleanFileName(v.Title)) + ".mp4";
 										AddToQueue(v, filePath);
 									}
 								}
@@ -157,7 +157,7 @@ namespace Formula1Downloader
 			{
 				DirectoryUrl = new NSUrl(DefaultSaveDirectory),
 				AllowedFileTypes = new string[] {
-					PreferMP4.State.HasFlag(NSCellStateValue.On) ? "mp4" : "flv"
+					"mp4"
 				},
 				Title = "Save Video File",
 				NameFieldStringValue = CleanFileName(video.Title)
@@ -180,7 +180,6 @@ namespace Formula1Downloader
 		{
 			DownloadButton.Enabled = enable;
 			URLTextField.Enabled = enable;
-			PreferMP4.Enabled = enable;
 		}
 
 
@@ -209,12 +208,7 @@ namespace Formula1Downloader
 
 		private void DownloadVideo(Video video, string filePath)
 		{
-			Downloader d;
-
-			if (PreferMP4.State.HasFlag(NSCellStateValue.On))
-				d = new MP4Downloader(video, filePath);
-			else
-				d = new FLVDownloader(video, filePath);
+			Downloader d = new MP4Downloader(video, filePath);
 
 			d.ProgressChanged += OnProgressChanged;
 			d.DownloadComplete += OnDownloadComplete;

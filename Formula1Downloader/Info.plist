@@ -7,9 +7,9 @@
 	<key>CFBundleIdentifier</key>
 	<string>com.henry.formula1-downloader</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.1</string>
+	<string>1.2</string>
 	<key>CFBundleVersion</key>
-	<string>2</string>
+	<string>3</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>10.11</string>
 	<key>CFBundleDevelopmentRegion</key>

@@ -16,9 +16,6 @@ namespace Formula1Downloader
 		AppKit.NSButton DownloadButton { get; set; }
 
 		[Outlet]
-		AppKit.NSButton PreferMP4 { get; set; }
-
-		[Outlet]
 		AppKit.NSProgressIndicator ProgressBar { get; set; }
 
 		[Outlet]
@@ -35,11 +32,6 @@ namespace Formula1Downloader
 			if (DownloadButton != null) {
 				DownloadButton.Dispose ();
 				DownloadButton = null;
-			}
-
-			if (PreferMP4 != null) {
-				PreferMP4.Dispose ();
-				PreferMP4 = null;
 			}
 
 			if (ProgressBar != null) {
